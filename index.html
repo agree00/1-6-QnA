@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리 학급 Q&A 게시판</title>
+  <!-- Supabase JS 라이브러리 불러오기 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 10px; }
+    h1 { text-align: center; }
+    .form-box { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
+    input, textarea, button { padding: 10px; font-size: 14px; }
+    button { background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 4px; }
+    button:hover { background-color: #45a049; }
+    .question-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
+    .question-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+    .question-author { color: #666; font-size: 12px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>🙋‍♂️ 우리 반 Q&A 게시판</h1>
+
+  <!-- 질문 작성 폼 -->
+  <div class="form-box">
+    <h3>질문하기</h3>
+    <input type="text" id="author" placeholder="이름 (예: 홍길동)">
+    <input type="text" id="title" placeholder="질문 제목">
+    <textarea id="content" rows="3" placeholder="궁금한 내용을 적어주세요."></textarea>
+    <button onclick="submitQuestion()">질문 등록하기</button>
+  </div>
+
+  <!-- 질문 목록이 출력될 영역 -->
+  <h3>질문 목록</h3>
+  <div id="questions-list">질문을 불러오는 중...</div>
+
+  <script>
+    // 1. Supabase 접속 설정
+    const SUPABASE_URL = 'https://tyznsmkymqmzqwvwjfwc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5em5zbWt5bXFtenF3dndqZndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NDc1NzgsImV4cCI6MjEwMjUyMzU3OH0.HFvJoSlvIRLE-5l2vG_Wt8gTXNPmFiZ_J9ZeYN3Q9oQ';
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. 질문 등록 함수
+    async function submitQuestion() {
+      const author = document.getElementById('author').value;
+      const title = document.getElementById('title').value;
+      const content = document.getElementById('content').value;
+
+      if (!author || !title || !content) {
+        alert('이름, 제목, 내용을 모두 입력해주세요!');
+        return;
+      }
+
+      // Supabase 'questions' 테이블에 데이터 저장
+      const { data, error } = await supabaseClient
+        .from('questions')
+        .insert([{ author: author, title: title, content: content }]);
+
+      if (error) {
+        alert('저장 중 오류가 발생했습니다: ' + error.message);
+      } else {
+        alert('질문이 성공적으로 등록되었습니다!');
+        // 입력창 비우기
+        document.getElementById('author').value = '';
+        document.getElementById('title').value = '';
+        document.getElementById('content').value = '';
+        // 목록 다시 불러오기
+        fetchQuestions();
+      }
+    }
+
+    // 3. 질문 목록 불러오기 함수
+    async function fetchQuestions() {
+      const listElement = document.getElementById('questions-list');
+
+      // Supabase 'questions' 테이블에서 데이터 읽기
+      const { data: questions, error } = await supabaseClient
+        .from('questions')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) {
+        listElement.innerHTML = '질문을 불러오지 못했습니다.';
+        console.error(error);
+        return;
+      }
+
+      if (questions.length === 0) {
+        listElement.innerHTML = '아직 등록된 질문이 없습니다.';
+        return;
+      }
+
+      // 불러온 데이터를 화면에 태그로 뿌려주기
+      listElement.innerHTML = '';
+      questions.forEach(q => {
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        card.innerHTML = `
+          <div class="question-title">${q.title}</div>
+          <div class="question-author">작성자: ${q.author}</div>
+          <div>${q.content}</div>
+        `;
+        listElement.appendChild(card);
+      });
+    }
+
+    // 페이지가 처음 열릴 때 질문 목록 가져오기 실행
+    window.onload = fetchQuestions;
+  </script>
+</body>
+</html>
