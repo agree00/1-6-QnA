@@ -3,111 +3,518 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>우리 학급 Q&A 게시판</title>
-  <!-- Supabase JS 라이브러리 불러오기 -->
+  <title>우리반 Q&A</title>
+  <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 10px; }
-    h1 { text-align: center; }
-    .form-box { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
-    input, textarea, button { padding: 10px; font-size: 14px; }
-    button { background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 4px; }
-    button:hover { background-color: #45a049; }
-    .question-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
-    .question-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-    .question-author { color: #666; font-size: 12px; margin-bottom: 10px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f5f6f8; color: #333; line-height: 1.5; padding-bottom: 40px; }
+    header { background-color: #ffffff; border-bottom: 1px solid #e1e4e8; padding: 15px 20px; text-align: center; position: sticky; top: 0; z-index: 100; }
+    header h1 { font-size: 20px; color: #2b3a4a; font-weight: 700; }
+    
+    .container { max-width: 680px; margin: 0 auto; padding: 15px; }
+    
+    /* 검색 및 필터 */
+    .filter-section { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-box input { flex: 1; padding: 10px 14px; border: 1px solid #dde1e5; border-radius: 8px; font-size: 14px; outline: none; }
+    .search-box button { padding: 10px 16px; background: #3182ce; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    
+    .subject-tags { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .subject-tags::-webkit-scrollbar { display: none; }
+    .tag-btn { padding: 6px 12px; background: #edf2f7; color: #4a5568; border: none; border-radius: 20px; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+    .tag-btn.active { background: #3182ce; color: #fff; font-weight: 700; }
+
+    /* 질문 작성 카드 */
+    .write-card { background: #fff; padding: 18px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .write-card h3 { font-size: 16px; margin-bottom: 12px; color: #2d3748; }
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: #718096; margin-bottom: 4px; }
+    .form-control { width: 100%; padding: 10px 12px; border: 1px solid #dde1e5; border-radius: 8px; font-size: 14px; outline: none; }
+    textarea.form-control { resize: vertical; min-height: 80px; }
+    select.form-control { background-color: #fff; }
+    
+    .file-input-wrapper { margin-top: 8px; }
+    .file-hint { font-size: 11px; color: #a0aec0; margin-top: 2px; }
+    .submit-btn { width: 100%; padding: 12px; background: #3182ce; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+    .submit-btn:disabled { background: #cbd5e0; cursor: not-allowed; }
+
+    /* 질문 목록 카드 */
+    .q-card { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); cursor: pointer; transition: transform 0.1s ease; }
+    .q-card:active { transform: scale(0.99); }
+    .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .q-badge { padding: 3px 8px; background: #ebf8ff; color: #2b6cb0; border-radius: 6px; font-size: 12px; font-weight: 700; }
+    .q-status { font-size: 12px; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .status-pending { background: #fffaf0; color: #dd6b20; }
+    .status-solved { background: #f0fff4; color: #38a169; }
+    
+    .q-title { font-size: 16px; font-weight: 700; color: #1a202c; margin-bottom: 6px; }
+    .q-preview { font-size: 14px; color: #4a5568; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+    .q-meta { display: flex; justify-content: space-between; font-size: 12px; color: #a0aec0; border-top: 1px solid #f7fafc; padding-top: 8px; }
+
+    /* 상세보기 모달/페이지 */
+    .detail-view { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 200; overflow-y: auto; padding: 20px 15px; }
+    .detail-container { max-width: 680px; margin: 0 auto; }
+    .close-btn { display: inline-block; padding: 8px 16px; background: #edf2f7; color: #2d3748; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 15px; }
+    .detail-body { font-size: 15px; line-height: 1.6; color: #2d3748; margin: 15px 0; white-space: pre-wrap; }
+    
+    .img-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 15px 0; }
+    .img-grid img { width: 100%; border-radius: 8px; border: 1px solid #edf2f7; object-fit: cover; max-height: 250px; }
+
+    /* 답변 영역 */
+    .answer-section { margin-top: 25px; border-top: 2px solid #edf2f7; padding-top: 20px; }
+    .answer-card { background: #f7fafc; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid #3182ce; }
+    .ans-meta { display: flex; justify-content: space-between; font-size: 12px; color: #718096; margin-bottom: 4px; }
+    .ans-content { font-size: 14px; color: #2d3748; white-space: pre-wrap; }
+    
+    .empty-state { text-align: center; padding: 40px 20px; color: #a0aec0; }
+    .empty-state h4 { font-size: 16px; color: #718096; margin-bottom: 8px; }
+
+    .loading { text-align: center; padding: 20px; color: #718096; font-size: 14px; }
   </style>
 </head>
 <body>
 
-  <h1>🙋‍♂️ 우리 반 Q&A 게시판</h1>
+  <header>
+    <h1>우리반 Q&A</h1>
+  </header>
 
-  <!-- 질문 작성 폼 -->
-  <div class="form-box">
-    <h3>질문하기</h3>
-    <input type="text" id="author" placeholder="이름 (예: 홍길동)">
-    <input type="text" id="title" placeholder="질문 제목">
-    <textarea id="content" rows="3" placeholder="궁금한 내용을 적어주세요."></textarea>
-    <button onclick="submitQuestion()">질문 등록하기</button>
+  <div class="container">
+    
+    <!-- 검색 및 과목 필터 -->
+    <div class="filter-section">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="질문 제목 또는 내용 검색...">
+        <button onclick="applySearch()">검색</button>
+      </div>
+      <div class="subject-tags" id="subjectTags">
+        <!-- 과목 버튼이 동적으로 생성됩니다 -->
+      </div>
+    </div>
+
+    <!-- 질문 작성 Form -->
+    <div class="write-card">
+      <h3>✏️ 질문하기</h3>
+      <div class="form-group">
+        <label>닉네임 *</label>
+        <input type="text" id="writeNickname" class="form-control" placeholder="닉네임을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>과목 *</label>
+        <select id="writeSubject" class="form-control">
+          <!-- 과목 선택 항목 -->
+        </select>
+      </div>
+      <div class="form-group">
+        <label>질문 제목 *</label>
+        <input type="text" id="writeTitle" class="form-control" placeholder="제목을 간단히 적어주세요">
+      </div>
+      <div class="form-group">
+        <label>질문 내용 *</label>
+        <textarea id="writeContent" class="form-control" placeholder="궁금한 내용을 자세히 설명해주세요"></textarea>
+      </div>
+      <div class="form-group file-input-wrapper">
+        <label>문제 사진 첨부 (최대 3장)</label>
+        <input type="file" id="writeImages" accept="image/jpg, image/jpeg, image/png" multiple class="form-control">
+        <div class="file-hint">JPG, JPEG, PNG 파일만 지원합니다.</div>
+      </div>
+      <button class="submit-btn" id="submitBtn" onclick="submitQuestion()">질문 등록하기</button>
+    </div>
+
+    <!-- 질문 목록 -->
+    <h3 style="font-size: 16px; margin-bottom: 10px; color: #2d3748;">📋 질문 목록</h3>
+    <div id="questionsList">
+      <div class="loading">질문을 불러오는 중입니다...</div>
+    </div>
+
   </div>
 
-  <!-- 질문 목록이 출력될 영역 -->
-  <h3>질문 목록</h3>
-  <div id="questions-list">질문을 불러오는 중...</div>
+  <!-- 질문 상세보기 페이지 (모달형) -->
+  <div class="detail-view" id="detailView">
+    <div class="detail-container">
+      <div class="close-btn" onclick="closeDetail()">← 목록으로 돌아가기</div>
+      <div id="detailContent">
+        <!-- 동적 렌더링 -->
+      </div>
+
+      <!-- 답변 목록 및 작성 영역 -->
+      <div class="answer-section">
+        <h4 style="font-size: 15px; margin-bottom: 12px;" id="answerCountTitle">💬 답변</h4>
+        <div id="answersList"></div>
+
+        <!-- 답변 작성창 -->
+        <div class="write-card" style="margin-top: 15px; background: #f8fafc; border: 1px solid #e2e8f0;">
+          <h4 style="font-size: 14px; margin-bottom: 8px;">답변 달기</h4>
+          <div class="form-group">
+            <input type="text" id="ansNickname" class="form-control" placeholder="닉네임">
+          </div>
+          <div class="form-group">
+            <textarea id="ansContent" class="form-control" placeholder="답변 내용을 작성해주세요"></textarea>
+          </div>
+          <button class="submit-btn" id="ansSubmitBtn" onclick="submitAnswer()">답변 등록</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    // 1. Supabase 접속 설정
+    // 1. Supabase 연동 설정
     const SUPABASE_URL = 'https://tyznsmkymqmzqwvwjfwc.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5em5zbWt5bXFtenF3dndqZndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NDc1NzgsImV4cCI6MjEwMjUyMzU3OH0.HFvJoSlvIRLE-5l2vG_Wt8gTXNPmFiZ_J9ZeYN3Q9oQ';
-    
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. 질문 등록 함수
-    async function submitQuestion() {
-      const author = document.getElementById('author').value;
-      const title = document.getElementById('title').value;
-      const content = document.getElementById('content').value;
+    // 2. 지정된 9개 과목 목록
+    const SUBJECTS = ['국어', '수학', '공통영어', '심화영어', '한국사', '사회', '과학', '독일어', '기타'];
+    
+    let currentSubjectFilter = '전체';
+    let currentSearchQuery = '';
+    let currentDetailQuestionId = null;
 
-      if (!author || !title || !content) {
-        alert('이름, 제목, 내용을 모두 입력해주세요!');
+    // 초기화 함수
+    window.onload = function() {
+      initSubjectUI();
+      fetchQuestions();
+      subscribeToRealtime();
+    };
+
+    // 과목 필터 및 작성 폼 선택지 UI 동적 생성
+    function initSubjectUI() {
+      const tagsContainer = document.getElementById('subjectTags');
+      const selectBox = document.getElementById('writeSubject');
+
+      // 과목 필터 버튼들 생성
+      let tagsHTML = `<button class="tag-btn active" onclick="filterBySubject('전체', this)">전체</button>`;
+      SUBJECTS.forEach(sub => {
+        tagsHTML += `<button class="tag-btn" onclick="filterBySubject('${sub}', this)">${sub}</button>`;
+      });
+      tagsContainer.innerHTML = tagsHTML;
+
+      // 질문 작성 드롭다운 옵션 생성
+      let optionsHTML = '';
+      SUBJECTS.forEach(sub => {
+        optionsHTML += `<option value="${sub}">${sub}</option>`;
+      });
+      selectBox.innerHTML = optionsHTML;
+    }
+
+    // 과목 필터링 선택
+    function filterBySubject(subject, btn) {
+      currentSubjectFilter = subject;
+      document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      fetchQuestions();
+    }
+
+    // 검색 실행
+    function applySearch() {
+      currentSearchQuery = document.getElementById('searchInput').value.trim();
+      fetchQuestions();
+    }
+
+    // 질문 목록 불러오기
+    async function fetchQuestions() {
+      const listContainer = document.getElementById('questionsList');
+      listContainer.innerHTML = `<div class="loading">질문을 불러오는 중입니다...</div>`;
+
+      let query = supabaseClient
+        .from('questions')
+        .select('*, answers(id)');
+
+      // 과목 필터 조건
+      if (currentSubjectFilter !== '전체') {
+        query = query.eq('subject', currentSubjectFilter);
+      }
+
+      // 검색어 필터 조건 (제목 또는 내용)
+      if (currentSearchQuery !== '') {
+        query = query.or(`title.ilike.%${currentSearchQuery}%,content.ilike.%${currentSearchQuery}%`);
+      }
+
+      // 최신순 정렬
+      const { data: questions, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        listContainer.innerHTML = `<div class="empty-state"><h4>질문을 불러오지 못했습니다.</h4><p>잠시 후 다시 시도해 주세요.</p></div>`;
         return;
       }
 
-      // Supabase 'questions' 테이블에 데이터 저장
-      const { data, error } = await supabaseClient
+      if (!questions || questions.length === 0) {
+        if (currentSearchQuery !== '') {
+          listContainer.innerHTML = `<div class="empty-state"><h4>검색 결과가 없습니다.</h4></div>`;
+        } else {
+          listContainer.innerHTML = `
+            <div class="empty-state">
+              <h4>아직 질문이 없어요!</h4>
+              <p style="font-size:13px; margin-bottom:12px;">첫 번째 질문을 올려보세요.</p>
+            </div>`;
+        }
+        return;
+      }
+
+      // 목록 카드 출력
+      listContainer.innerHTML = '';
+      questions.forEach(q => {
+        const answerCount = q.answers ? q.answers.length : 0;
+        const isSolved = answerCount > 0;
+        const card = document.createElement('div');
+        card.className = 'q-card';
+        card.onclick = () => openDetail(q.id);
+        
+        card.innerHTML = `
+          <div class="q-header">
+            <span class="q-badge">${escapeHtml(q.subject)}</span>
+            <span class="q-status ${isSolved ? 'status-solved' : 'status-pending'}">
+              ${isSolved ? '해결됨' : '미해결'}
+            </span>
+          </div>
+          <div class="q-title">${escapeHtml(q.title)}</div>
+          <div class="q-preview">${escapeHtml(q.content)}</div>
+          <div class="q-meta">
+            <span>작성자: ${escapeHtml(q.nickname)} · ${formatTime(q.created_at)}</span>
+            <span>💬 답변 ${answerCount}</span>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    // 질문 등록 (사진 최대 3장 업로드 포함)
+    async function submitQuestion() {
+      const nickname = document.getElementById('writeNickname').value.trim();
+      const subject = document.getElementById('writeSubject').value;
+      const title = document.getElementById('writeTitle').value.trim();
+      const content = document.getElementById('writeContent').value.trim();
+      const fileInput = document.getElementById('writeImages');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!nickname || !title || !content) {
+        alert('닉네임, 질문 제목, 내용을 모두 입력해 주세요.');
+        return;
+      }
+
+      if (fileInput.files.length > 3) {
+        alert('사진은 최대 3장까지만 첨부할 수 있습니다.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = '등록 중...';
+
+      let imageUrls = [];
+
+      // 이미지 업로드 처리
+      if (fileInput.files.length > 0) {
+        for (let i = 0; i < fileInput.files.length; i++) {
+          const file = fileInput.files[i];
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+
+          const { error: uploadError } = await supabaseClient.storage
+            .from('question-images')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            alert('사진을 업로드하지 못했습니다.');
+            submitBtn.disabled = false;
+            submitBtn.innerText = '질문 등록하기';
+            return;
+          }
+
+          const { data: urlData } = supabaseClient.storage
+            .from('question-images')
+            .getPublicUrl(fileName);
+
+          imageUrls.push(urlData.publicUrl);
+        }
+      }
+
+      // DB 저장
+      const { error } = await supabaseClient
         .from('questions')
-        .insert([{ author: author, title: title, content: content }]);
+        .insert([{
+          nickname,
+          subject,
+          title,
+          content,
+          image_urls: imageUrls
+        }]);
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = '질문 등록하기';
 
       if (error) {
-        alert('저장 중 오류가 발생했습니다: ' + error.message);
+        alert('질문을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
       } else {
-        alert('질문이 성공적으로 등록되었습니다!');
-        // 입력창 비우기
-        document.getElementById('author').value = '';
-        document.getElementById('title').value = '';
-        document.getElementById('content').value = '';
-        // 목록 다시 불러오기
+        // 초기화
+        document.getElementById('writeTitle').value = '';
+        document.getElementById('writeContent').value = '';
+        fileInput.value = '';
         fetchQuestions();
       }
     }
 
-    // 3. 질문 목록 불러오기 함수
-    async function fetchQuestions() {
-      const listElement = document.getElementById('questions-list');
+    // 질문 상세 보기 열기
+    async function openDetail(questionId) {
+      currentDetailQuestionId = questionId;
+      document.getElementById('detailView').style.display = 'block';
+      document.body.style.overflow = 'hidden';
 
-      // Supabase 'questions' 테이블에서 데이터 읽기
-      const { data: questions, error } = await supabaseClient
+      const detailContent = document.getElementById('detailContent');
+      detailContent.innerHTML = `<div class="loading">불러오는 중...</div>`;
+
+      // 질문 및 해당 질문의 답변 목록 가져오기
+      const { data: question, error } = await supabaseClient
         .from('questions')
         .select('*')
-        .order('id', { ascending: false });
+        .eq('id', questionId)
+        .single();
+
+      if (error || !question) {
+        alert('질문을 불러올 수 없습니다.');
+        closeDetail();
+        return;
+      }
+
+      let imagesHTML = '';
+      if (question.image_urls && question.image_urls.length > 0) {
+        imagesHTML = `<div class="img-grid">`;
+        question.image_urls.forEach(url => {
+          imagesHTML += `<a href="${url}" target="_blank"><img src="${url}" alt="문제 사진"></a>`;
+        });
+        imagesHTML += `</div>`;
+      }
+
+      detailContent.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span class="q-badge">${escapeHtml(question.subject)}</span>
+          <span style="font-size:12px; color:#a0aec0;">${formatTime(question.created_at)}</span>
+        </div>
+        <h2 style="font-size:18px; color:#1a202c; margin-bottom:6px;">${escapeHtml(question.title)}</h2>
+        <div style="font-size:13px; color:#718096; margin-bottom:15px;">작성자: ${escapeHtml(question.nickname)}</div>
+        <div class="detail-body">${escapeHtml(question.content)}</div>
+        ${imagesHTML}
+      `;
+
+      fetchAnswers(questionId);
+    }
+
+    // 답변 목록 불러오기
+    async function fetchAnswers(questionId) {
+      const answersList = document.getElementById('answersList');
+      const answerCountTitle = document.getElementById('answerCountTitle');
+
+      const { data: answers, error } = await supabaseClient
+        .from('answers')
+        .select('*')
+        .eq('question_id', questionId)
+        .order('created_at', { ascending: true });
 
       if (error) {
-        listElement.innerHTML = '질문을 불러오지 못했습니다.';
-        console.error(error);
+        answersList.innerHTML = `<div style="font-size:13px; color:#e53e3e;">답변을 불러오지 못했습니다.</div>`;
         return;
       }
 
-      if (questions.length === 0) {
-        listElement.innerHTML = '아직 등록된 질문이 없습니다.';
+      answerCountTitle.innerText = `💬 답변 ${answers.length}개`;
+
+      if (answers.length === 0) {
+        answersList.innerHTML = `<div style="font-size:13px; color:#a0aec0; padding:10px 0;">아직 등록된 답변이 없습니다. 첫 답변을 작성해보세요!</div>`;
         return;
       }
 
-      // 불러온 데이터를 화면에 태그로 뿌려주기
-      listElement.innerHTML = '';
-      questions.forEach(q => {
-        const card = document.createElement('div');
-        card.className = 'question-card';
-        card.innerHTML = `
-          <div class="question-title">${q.title}</div>
-          <div class="question-author">작성자: ${q.author}</div>
-          <div>${q.content}</div>
+      answersList.innerHTML = '';
+      answers.forEach(ans => {
+        const item = document.createElement('div');
+        item.className = 'answer-card';
+        item.innerHTML = `
+          <div class="ans-meta">
+            <span style="font-weight:700; color:#2b6cb0;">${escapeHtml(ans.nickname)}</span>
+            <span>${formatTime(ans.created_at)}</span>
+          </div>
+          <div class="ans-content">${escapeHtml(ans.content)}</div>
         `;
-        listElement.appendChild(card);
+        answersList.appendChild(item);
       });
     }
 
-    // 페이지가 처음 열릴 때 질문 목록 가져오기 실행
-    window.onload = fetchQuestions;
+    // 답변 작성 등록
+    async function submitAnswer() {
+      if (!currentDetailQuestionId) return;
+
+      const nickname = document.getElementById('ansNickname').value.trim();
+      const content = document.getElementById('ansContent').value.trim();
+      const btn = document.getElementById('ansSubmitBtn');
+
+      if (!nickname || !content) {
+        alert('닉네임과 답변 내용을 작성해 주세요.');
+        return;
+      }
+
+      btn.disabled = true;
+
+      const { error } = await supabaseClient
+        .from('answers')
+        .insert([{
+          question_id: currentDetailQuestionId,
+          nickname,
+          content
+        }]);
+
+      btn.disabled = false;
+
+      if (error) {
+        alert('답변을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      } else {
+        document.getElementById('ansContent').value = '';
+        fetchAnswers(currentDetailQuestionId);
+        fetchQuestions(); // 목록 해결 여부 상태 업데이트 반영
+      }
+    }
+
+    // 상세보기 닫기
+    function closeDetail() {
+      document.getElementById('detailView').style.display = 'none';
+      document.body.style.overflow = 'auto';
+      currentDetailQuestionId = null;
+    }
+
+    // 실시간 변경 감지 (누군가 질문/답변 작성 시 자동 업데이트)
+    function subscribeToRealtime() {
+      supabaseClient
+        .channel('public-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
+          fetchQuestions();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'answers' }, () => {
+          fetchQuestions();
+          if (currentDetailQuestionId) {
+            fetchAnswers(currentDetailQuestionId);
+          }
+        })
+        .subscribe();
+    }
+
+    // 시간 표시 헬퍼
+    function formatTime(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffSec = Math.floor((now - date) / 1000);
+      
+      if (diffSec < 60) return '방금 전';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)}분 전`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}시간 전`;
+      return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+    }
+
+    // XSS 방지 헬퍼
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
   </script>
 </body>
 </html>
